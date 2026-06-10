@@ -1,6 +1,9 @@
 package com.example.af_mobile;
 
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.location.Location;
 import android.os.Bundle;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -11,22 +14,30 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.activity.EdgeToEdge;
+import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
 import androidx.core.graphics.Insets;
 import androidx.core.view.ViewCompat;
 import androidx.core.view.WindowInsetsCompat;
 import com.bumptech.glide.Glide;
 import com.example.af_mobile.models.Livro;
 import com.example.af_mobile.models.LivroFirebase;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.firebase.firestore.DocumentReference;
 import com.google.firebase.firestore.FirebaseFirestore;
 
 public class AddBook extends AppCompatActivity {
+    private static final int LOCATION_PERMISSION_REQUEST = 200;
+
     String livroId = "";
     String editandoId = "";
     String titulo = "";
     String autor = "";
     String capa = "";
+    String coordenadas = "-0.000000,-0.000000";
     LivroFirebase editandoLivro = null;
     TextView tvTitulo, tvAutor;
     EditText etObservation;
@@ -34,6 +45,7 @@ public class AddBook extends AppCompatActivity {
     ImageView ivBookCover;
     Button btnBackAddBook, btnSaveBook;
     private FirebaseFirestore db;
+    private FusedLocationProviderClient fusedLocationClient;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,7 +59,9 @@ public class AddBook extends AppCompatActivity {
         });
 
         db = FirebaseFirestore.getInstance();
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         WireElements();
+        capturarCoordenadas();
 
         livroId = getIntent().getStringExtra("livro");
         editandoId = getIntent().getStringExtra("editandoId") != null ? getIntent().getStringExtra("editandoId") : "";
@@ -117,10 +131,47 @@ public class AddBook extends AppCompatActivity {
         });
     }
 
+    private void capturarCoordenadas() {
+        try {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+                    != PackageManager.PERMISSION_GRANTED) {
+                ActivityCompat.requestPermissions(this,
+                        new String[]{Manifest.permission.ACCESS_FINE_LOCATION},
+                        LOCATION_PERMISSION_REQUEST);
+                return;
+            }
+
+            fusedLocationClient.getLastLocation().addOnSuccessListener(location -> {
+                if (location != null) {
+                    double latitude = location.getLatitude();
+                    double longitude = location.getLongitude();
+                    coordenadas = latitude + "," + longitude;
+                } else {
+                    Toast.makeText(AddBook.this, "Não foi possível obter a localização",
+                            Toast.LENGTH_SHORT).show();
+                }
+            });
+        } catch (Exception e) {
+            Toast.makeText(AddBook.this, e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == LOCATION_PERMISSION_REQUEST) {
+            if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                capturarCoordenadas();
+            } else {
+                Toast.makeText(this, "Permissão de localização negada", Toast.LENGTH_SHORT).show();
+            }
+        }
+    }
+
     private void SalvarLivro(){
         String status = spnStatus.getSelectedItem().toString();
         String local = spnLocal.getSelectedItem().toString();
-        String coordenadas = "-0.000000,-0.000000";
         String titulo = tvTitulo.getText().toString();
         String autor = tvAutor.getText().toString();
         String observacao = etObservation.getText().toString();
